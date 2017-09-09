@@ -1,4 +1,4 @@
-package retrofit2.com.aaront.test;
+package com.aaront.test;
 
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;

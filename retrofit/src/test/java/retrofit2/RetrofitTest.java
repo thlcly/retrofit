@@ -15,30 +15,10 @@
  */
 package retrofit2;
 
-import java.io.IOException;
-import java.lang.annotation.Annotation;
-import java.lang.annotation.Retention;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import okhttp3.HttpUrl;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.ResponseBody;
+import okhttp3.*;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+// junit和spring的juint的区别: 不需要依赖spring的上下文, 因此可以在广告系统中common这种不依赖spring容器的测试
 import org.junit.Rule;
 import org.junit.Test;
 import retrofit2.helpers.DelegatingCallAdapterFactory;
@@ -50,19 +30,25 @@ import retrofit2.http.GET;
 import retrofit2.http.POST;
 import retrofit2.http.Query;
 
+import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.lang.annotation.Retention;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 import static okhttp3.mockwebserver.SocketPolicy.DISCONNECT_AT_START;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.*;
 
 public final class RetrofitTest {
   @Rule public final MockWebServer server = new MockWebServer();
@@ -117,6 +103,7 @@ public final class RetrofitTest {
     @GET("/") Call<String> method(@Query("i") AtomicInteger value);
   }
 
+  // 测试意图: 从Object继承的方法直接调用
   @SuppressWarnings("EqualsBetweenInconvertibleTypes") // We are explicitly testing this behavior.
   @Test public void objectMethodsStillWork() {
     Retrofit retrofit = new Retrofit.Builder()
@@ -129,6 +116,7 @@ public final class RetrofitTest {
     assertThat(example.toString()).isNotEmpty();
   }
 
+  // 测试意图: 接口不能继承其他的接口
   @Test public void interfaceWithExtendIsNotSupported() {
     Retrofit retrofit = new Retrofit.Builder()
         .baseUrl(server.url("/"))
@@ -141,6 +129,12 @@ public final class RetrofitTest {
     }
   }
 
+
+  // 测试意图: 由一个Retrofit对象生成一个新的Retrofit对象
+  // 1. 新的Retrofit对象的会添加旧的Retrofit对象的callAdapter
+  // 2. 新的Retrofit对象的会添加旧的Retrofit对象的converterFactory
+  // 3. 新的Retrofit对象的baseUrl/executor/callFactory和旧的Retrofit对象一致
+  // 4. 这里的mock的作用很有用！！！！
   @Test public void cloneSharesStatefulInstances() {
     CallAdapter.Factory callAdapter = mock(CallAdapter.Factory.class);
     Converter.Factory converter = mock(Converter.Factory.class);
@@ -171,6 +165,7 @@ public final class RetrofitTest {
     assertSame(callFactory, two.callFactory());
   }
 
+  // 测试意图: 返回的结果不能是Retrofit的Response类型(retrofit2.Response)
   @Test public void responseTypeCannotBeRetrofitResponse() {
     Retrofit retrofit = new Retrofit.Builder()
         .baseUrl(server.url("/"))
@@ -185,7 +180,7 @@ public final class RetrofitTest {
               + "    for method CallMethod.badType1");
     }
   }
-
+  // 测试意图: 返回的结果不能是OkHttp的Response类型(okhttp3.Response)
   @Test public void responseTypeCannotBeOkHttpResponse() {
     Retrofit retrofit = new Retrofit.Builder()
         .baseUrl(server.url("/"))
@@ -201,6 +196,7 @@ public final class RetrofitTest {
     }
   }
 
+  // 测试意图: 返回的结果不能是void
   @Test public void voidReturnTypeNotAllowed() {
     Retrofit retrofit = new Retrofit.Builder()
         .baseUrl(server.url("/"))
@@ -216,6 +212,7 @@ public final class RetrofitTest {
     }
   }
 
+  // 测试意图: 提前生成接口中方法的ServiceMethod默认关闭
   @Test public void validateEagerlyDisabledByDefault() {
     Retrofit retrofit = new Retrofit.Builder()
         .baseUrl(server.url("/"))
@@ -225,6 +222,7 @@ public final class RetrofitTest {
     retrofit.create(VoidService.class);
   }
 
+  // 测试意图: 关闭提前生成接口中方法的ServiceMethod
   @Test public void validateEagerlyDisabledByUser() {
     Retrofit retrofit = new Retrofit.Builder()
         .baseUrl(server.url("/"))
@@ -235,6 +233,7 @@ public final class RetrofitTest {
     retrofit.create(VoidService.class);
   }
 
+  // 测试意图: 开启提前生成接口中方法的ServiceMethod, 事先将每个方法的ServiceMethod生成好放在Map, 后面调用就不用再生成, 提高效率
   @Test public void validateEagerlyFailsAtCreation() {
     Retrofit retrofit = new Retrofit.Builder()
         .baseUrl(server.url("/"))
@@ -250,6 +249,7 @@ public final class RetrofitTest {
     }
   }
 
+  // 使用默认的callAdapter处理ResponseBody类型的返回值
   @Test public void callCallAdapterAddedByDefault() {
     Retrofit retrofit = new Retrofit.Builder()
         .baseUrl(server.url("/"))
@@ -258,6 +258,7 @@ public final class RetrofitTest {
     assertThat(example.getResponseBody()).isNotNull();
   }
 
+  //测试意图: 使用自定义的callAdapter处理自定义的返回值类型
   @Test public void callCallCustomAdapter() {
     final AtomicBoolean factoryCalled = new AtomicBoolean();
     final AtomicBoolean adapterCalled = new AtomicBoolean();

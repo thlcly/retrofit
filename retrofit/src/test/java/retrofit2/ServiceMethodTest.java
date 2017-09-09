@@ -15,12 +15,14 @@
  */
 package retrofit2;
 
-import java.util.Set;
 import org.junit.Test;
+
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public final class ServiceMethodTest {
+  // org.junit可以用在广告系统common模块的单元测试
   @Test public void pathParameterParsing() throws Exception {
     expectParams("/");
     expectParams("/foo");
@@ -40,6 +42,7 @@ public final class ServiceMethodTest {
     expectParams("/foo/bar/{1}"); // Invalid parameter, name cannot start with digit.
   }
 
+  // 路径上的参数支持的形式: / [a-zA-Z][a-zA-Z0-9_-]* /, 特别要注意参数可以包含'-', 这个正则表达式可以用在广告系统的mobile的参数的替换
   private static void expectParams(String path, String... expected) {
     Set<String> calculated = ServiceMethod.parsePathParameters(path);
     assertThat(calculated).containsExactly(expected);

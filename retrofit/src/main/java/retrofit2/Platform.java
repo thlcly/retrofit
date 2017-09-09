@@ -75,6 +75,7 @@ class Platform {
 
   @IgnoreJRERequirement // Only classloaded and used on Java 8.
   static class Java8 extends Platform {
+    // 判断method是否是一个默认方法(在这里这个method就是一个接口中的方法)
     @Override boolean isDefaultMethod(Method method) {
       return method.isDefault();
     }

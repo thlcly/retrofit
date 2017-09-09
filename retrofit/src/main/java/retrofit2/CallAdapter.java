@@ -21,7 +21,7 @@ import java.lang.reflect.Type;
 
 /**
  * Adapts a {@link Call} with response type {@code R} into the type of {@code T}. Instances are
- * created by {@linkplain Factory a factory} which is
+ * created by  {@linkplain Factory a factory} which is
  * {@linkplain Retrofit.Builder#addCallAdapterFactory(Factory) installed} into the {@link Retrofit}
  * instance.
  */

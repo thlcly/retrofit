@@ -15,6 +15,15 @@
  */
 package retrofit2;
 
+import okhttp3.HttpUrl;
+import okhttp3.OkHttpClient;
+import okhttp3.RequestBody;
+import okhttp3.ResponseBody;
+import retrofit2.http.GET;
+import retrofit2.http.HTTP;
+import retrofit2.http.Header;
+import retrofit2.http.Url;
+
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -25,14 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import okhttp3.HttpUrl;
-import okhttp3.OkHttpClient;
-import okhttp3.RequestBody;
-import okhttp3.ResponseBody;
-import retrofit2.http.GET;
-import retrofit2.http.HTTP;
-import retrofit2.http.Header;
-import retrofit2.http.Url;
 
 import static java.util.Collections.unmodifiableList;
 import static retrofit2.Utils.checkNotNull;
@@ -62,6 +63,7 @@ public final class Retrofit {
   final okhttp3.Call.Factory callFactory;
   final HttpUrl baseUrl;
   final List<Converter.Factory> converterFactories;
+  // 默认添加了DefaultCallAdapterFactory
   final List<CallAdapter.Factory> adapterFactories;
   final Executor callbackExecutor;
   final boolean validateEagerly;
@@ -125,10 +127,17 @@ public final class Retrofit {
    */
   @SuppressWarnings("unchecked") // Single-interface proxy creation guarded by parameter safety.
   public <T> T create(final Class<T> service) {
+    // 校验service是否是一个没有继承其他接口的接口
     Utils.validateServiceInterface(service);
+    // 如果validateEagerly==true, 则先将接口中的方法全部都放到serviceMethodCache中,
+    // 这样在之后的调用过程中就不需要走loadServiceMethod的流程, 而是直接走的缓存, 这样子可以加快访问的速度,
+    // 但是这样子也存在一定的坏处, 因为会造成内存占用量变大而且可能有些方法不会被调用都被放到缓存中了
     if (validateEagerly) {
       eagerlyValidateMethods(service);
     }
+    // 代理模式,
+    // 使用代理拦截接口中所有的方法, 从而解析方法上的注解, 方法参数上的注解, 返回值等, 这也是retrofit可以实现面向接口和注解编程的关键
+    // service: 真实对象, proxy: 代理对象, method: 调用的方法, args: 方法参数
     return (T) Proxy.newProxyInstance(service.getClassLoader(), new Class<?>[] { service },
         new InvocationHandler() {
           private final Platform platform = Platform.get();
@@ -136,9 +145,11 @@ public final class Retrofit {
           @Override public Object invoke(Object proxy, Method method, Object... args)
               throws Throwable {
             // If the method is a method from Object then defer to normal invocation.
+            // 如果调用的是Object对象中方法则直接返回调用结果
             if (method.getDeclaringClass() == Object.class) {
               return method.invoke(this, args);
             }
+            // 如果调用的是接口中的默认方法则直接返回对应平台对调用默认方法的处理
             if (platform.isDefaultMethod(method)) {
               return platform.invokeDefaultMethod(method, service, proxy, args);
             }
@@ -160,10 +171,13 @@ public final class Retrofit {
   }
 
   ServiceMethod<?, ?> loadServiceMethod(Method method) {
+    // 缓存技术
     ServiceMethod<?, ?> result = serviceMethodCache.get(method);
     if (result != null) return result;
 
+    // 使用了两次判断
     synchronized (serviceMethodCache) {
+      // 这一次从缓存中取是有必要的且非常重要, 如果没有这一次则有可能下面的代码会被重复执行, 同一个key也可能被重复赋值
       result = serviceMethodCache.get(method);
       if (result == null) {
         result = new ServiceMethod.Builder<>(this, method).build();
@@ -215,6 +229,7 @@ public final class Retrofit {
     checkNotNull(returnType, "returnType == null");
     checkNotNull(annotations, "annotations == null");
 
+    // 跳过前indexOf(skipPast)个CallAdapter
     int start = adapterFactories.indexOf(skipPast) + 1;
     for (int i = start, count = adapterFactories.size(); i < count; i++) {
       CallAdapter<?, ?> adapter = adapterFactories.get(i).get(returnType, annotations, this);
@@ -410,7 +425,7 @@ public final class Retrofit {
     }
 
     Builder(Retrofit retrofit) {
-      platform = Platform.get();
+      this.platform = Platform.get();
       callFactory = retrofit.callFactory;
       baseUrl = retrofit.baseUrl;
       converterFactories.addAll(retrofit.converterFactories);
@@ -506,7 +521,9 @@ public final class Retrofit {
      */
     public Builder baseUrl(HttpUrl baseUrl) {
       checkNotNull(baseUrl, "baseUrl == null");
+      // pathSegments() 返回的是url的查找路径List(查找路径是以'/'分割的字符串, 所以只要split("/")就可以了)
       List<String> pathSegments = baseUrl.pathSegments();
+      // 如果List的最后一个元素不是(""), 则说明查找路径不是以'/'结尾的字符串
       if (!"".equals(pathSegments.get(pathSegments.size() - 1))) {
         throw new IllegalArgumentException("baseUrl must end in /: " + baseUrl);
       }
@@ -515,6 +532,7 @@ public final class Retrofit {
     }
 
     /** Add converter factory for serialization and deserialization of objects. */
+    // 添加自定义的转换器
     public Builder addConverterFactory(Converter.Factory factory) {
       converterFactories.add(checkNotNull(factory, "factory == null"));
       return this;

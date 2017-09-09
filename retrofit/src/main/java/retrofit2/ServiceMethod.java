@@ -15,6 +15,10 @@
  */
 package retrofit2;
 
+import okhttp3.Headers;
+import okhttp3.*;
+import retrofit2.http.*;
+
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
@@ -26,34 +30,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import okhttp3.Headers;
-import okhttp3.HttpUrl;
-import okhttp3.MediaType;
-import okhttp3.MultipartBody;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.ResponseBody;
-import retrofit2.http.Body;
-import retrofit2.http.DELETE;
-import retrofit2.http.Field;
-import retrofit2.http.FieldMap;
-import retrofit2.http.FormUrlEncoded;
-import retrofit2.http.GET;
-import retrofit2.http.HEAD;
-import retrofit2.http.HTTP;
-import retrofit2.http.Header;
-import retrofit2.http.HeaderMap;
-import retrofit2.http.Multipart;
-import retrofit2.http.OPTIONS;
-import retrofit2.http.PATCH;
-import retrofit2.http.POST;
-import retrofit2.http.PUT;
-import retrofit2.http.Part;
-import retrofit2.http.PartMap;
-import retrofit2.http.Path;
-import retrofit2.http.Query;
-import retrofit2.http.QueryMap;
-import retrofit2.http.Url;
 
 /** Adapts an invocation of an interface method into an HTTP call. */
 final class ServiceMethod<R, T> {
@@ -151,8 +127,11 @@ final class ServiceMethod<R, T> {
     public Builder(Retrofit retrofit, Method method) {
       this.retrofit = retrofit;
       this.method = method;
+      // 获取方法上的注解
       this.methodAnnotations = method.getAnnotations();
+      // 获取方法参数中的泛型
       this.parameterTypes = method.getGenericParameterTypes();
+      // 获取方法参数中参数和修饰参数的注解的二维数组
       this.parameterAnnotationsArray = method.getParameterAnnotations();
     }
 
@@ -219,14 +198,18 @@ final class ServiceMethod<R, T> {
     }
 
     private CallAdapter<T, R> createCallAdapter() {
+      // 获取返回方法返回类型
       Type returnType = method.getGenericReturnType();
+      // 返回类型不能是泛型
       if (Utils.hasUnresolvableType(returnType)) {
         throw methodError(
             "Method return type must not include a type variable or wildcard: %s", returnType);
       }
+      // 返回类型不能为空
       if (returnType == void.class) {
         throw methodError("Service methods cannot return void.");
       }
+      // 获取方法上的注解
       Annotation[] annotations = method.getAnnotations();
       try {
         //noinspection unchecked
