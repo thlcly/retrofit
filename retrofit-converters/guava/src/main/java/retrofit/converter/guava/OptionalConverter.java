@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Square, Inc.
+ * Copyright (C) 2017 Square, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,23 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package retrofit2.adapter.rxjava;
+package retrofit.converter.guava;
 
-import java.util.concurrent.Callable;
-import retrofit2.Response;
+import com.google.common.base.Optional;
+import java.io.IOException;
+import okhttp3.ResponseBody;
+import retrofit2.Converter;
 
-final class ResultCallable<R> implements Callable<Result<R>> {
-  private final Callable<Response<R>> responseCallable;
+final class OptionalConverter<T> implements Converter<ResponseBody, Optional<T>> {
+  private final Converter<ResponseBody, T> delegate;
 
-  ResultCallable(Callable<Response<R>> responseCallable) {
-    this.responseCallable = responseCallable;
+  OptionalConverter(Converter<ResponseBody, T> delegate) {
+    this.delegate = delegate;
   }
 
-  @Override public Result<R> call() {
-    try {
-      return Result.response(responseCallable.call());
-    } catch (Throwable t) {
-      return Result.error(t);
-    }
+  @Override public Optional<T> convert(ResponseBody value) throws IOException {
+    return Optional.fromNullable(delegate.convert(value));
   }
 }

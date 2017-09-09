@@ -104,7 +104,7 @@ public final class CompletableThrowingTest {
     assertThat(composite.getExceptions()).containsExactly(errorRef.get(), e);
   }
 
-  private static abstract class ForwardingCompletableObserver implements CompletableObserver {
+  static abstract class ForwardingCompletableObserver implements CompletableObserver {
     private final CompletableObserver delegate;
 
     ForwardingCompletableObserver(CompletableObserver delegate) {

@@ -20,6 +20,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.concurrent.GuardedBy;
 import okhttp3.Request;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -34,7 +35,8 @@ final class BehaviorCall<T> implements Call<T> {
 
   private volatile Future<?> task;
   volatile boolean canceled;
-  private volatile boolean executed;
+  @GuardedBy("this")
+  private boolean executed;
 
   BehaviorCall(NetworkBehavior behavior, ExecutorService backgroundExecutor, Call<T> delegate) {
     this.behavior = behavior;
@@ -51,6 +53,7 @@ final class BehaviorCall<T> implements Call<T> {
     return delegate.request();
   }
 
+  @SuppressWarnings("ConstantConditions") // Guarding public API nullability.
   @Override public void enqueue(final Callback<T> callback) {
     if (callback == null) throw new NullPointerException("callback == null");
 
@@ -78,6 +81,11 @@ final class BehaviorCall<T> implements Call<T> {
         } else if (behavior.calculateIsFailure()) {
           if (delaySleep()) {
             callback.onFailure(BehaviorCall.this, behavior.failureException());
+          }
+        } else if (behavior.calculateIsError()) {
+          if (delaySleep()) {
+            //noinspection unchecked An error response has no body.
+            callback.onResponse(BehaviorCall.this, (Response<T>) behavior.createErrorResponse());
           }
         } else {
           delegate.enqueue(new Callback<T>() {

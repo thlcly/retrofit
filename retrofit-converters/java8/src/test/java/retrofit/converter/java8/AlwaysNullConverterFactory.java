@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jake Wharton
+ * Copyright (C) 2017 Square, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,22 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package retrofit2.adapter.rxjava;
+package retrofit.converter.java8;
 
 import java.io.IOException;
-import java.util.concurrent.Callable;
-import retrofit2.Call;
-import retrofit2.Response;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
+import okhttp3.ResponseBody;
+import retrofit2.Converter;
+import retrofit2.Retrofit;
 
-final class ResponseCallable<T> implements Callable<Response<T>> {
-  private final Call<T> call;
-
-  ResponseCallable(Call<T> call) {
-    this.call = call;
-  }
-
-  @Override public Response<T> call() throws IOException {
-    // Since Call is a one-shot type, clone it for each new caller.
-    return call.clone().execute();
+final class AlwaysNullConverterFactory extends Converter.Factory {
+  @Override
+  public Converter<ResponseBody, ?> responseBodyConverter(Type type, Annotation[] annotations,
+      Retrofit retrofit) {
+    return new Converter<ResponseBody, Object>() {
+      @Override public Object convert(ResponseBody value) throws IOException {
+        return null;
+      }
+    };
   }
 }

@@ -34,6 +34,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import javax.annotation.Nullable;
+import okhttp3.HttpUrl;
+import okhttp3.OkHttpClient;
+import okhttp3.RequestBody;
+import okhttp3.ResponseBody;
+import retrofit2.http.GET;
+import retrofit2.http.HTTP;
+import retrofit2.http.Header;
+import retrofit2.http.Url;
 
 import static java.util.Collections.unmodifiableList;
 import static retrofit2.Utils.checkNotNull;
@@ -65,12 +74,12 @@ public final class Retrofit {
   final List<Converter.Factory> converterFactories;
   // 默认添加了DefaultCallAdapterFactory
   final List<CallAdapter.Factory> adapterFactories;
-  final Executor callbackExecutor;
+  final @Nullable Executor callbackExecutor;
   final boolean validateEagerly;
 
   Retrofit(okhttp3.Call.Factory callFactory, HttpUrl baseUrl,
       List<Converter.Factory> converterFactories, List<CallAdapter.Factory> adapterFactories,
-      Executor callbackExecutor, boolean validateEagerly) {
+      @Nullable Executor callbackExecutor, boolean validateEagerly) {
     this.callFactory = callFactory;
     this.baseUrl = baseUrl;
     this.converterFactories = unmodifiableList(converterFactories); // Defensive copy at call site.
@@ -142,7 +151,7 @@ public final class Retrofit {
         new InvocationHandler() {
           private final Platform platform = Platform.get();
 
-          @Override public Object invoke(Object proxy, Method method, Object... args)
+          @Override public Object invoke(Object proxy, Method method, @Nullable Object[] args)
               throws Throwable {
             // If the method is a method from Object then defer to normal invocation.
             // 如果调用的是Object对象中方法则直接返回调用结果
@@ -224,7 +233,7 @@ public final class Retrofit {
    *
    * @throws IllegalArgumentException if no call adapter available for {@code type}.
    */
-  public CallAdapter<?, ?> nextCallAdapter(CallAdapter.Factory skipPast, Type returnType,
+  public CallAdapter<?, ?> nextCallAdapter(@Nullable CallAdapter.Factory skipPast, Type returnType,
       Annotation[] annotations) {
     checkNotNull(returnType, "returnType == null");
     checkNotNull(annotations, "annotations == null");
@@ -282,8 +291,9 @@ public final class Retrofit {
    *
    * @throws IllegalArgumentException if no converter available for {@code type}.
    */
-  public <T> Converter<T, RequestBody> nextRequestBodyConverter(Converter.Factory skipPast,
-      Type type, Annotation[] parameterAnnotations, Annotation[] methodAnnotations) {
+  public <T> Converter<T, RequestBody> nextRequestBodyConverter(
+      @Nullable Converter.Factory skipPast, Type type, Annotation[] parameterAnnotations,
+      Annotation[] methodAnnotations) {
     checkNotNull(type, "type == null");
     checkNotNull(parameterAnnotations, "parameterAnnotations == null");
     checkNotNull(methodAnnotations, "methodAnnotations == null");
@@ -332,8 +342,8 @@ public final class Retrofit {
    *
    * @throws IllegalArgumentException if no converter available for {@code type}.
    */
-  public <T> Converter<ResponseBody, T> nextResponseBodyConverter(Converter.Factory skipPast,
-      Type type, Annotation[] annotations) {
+  public <T> Converter<ResponseBody, T> nextResponseBodyConverter(
+      @Nullable Converter.Factory skipPast, Type type, Annotation[] annotations) {
     checkNotNull(type, "type == null");
     checkNotNull(annotations, "annotations == null");
 
@@ -390,7 +400,7 @@ public final class Retrofit {
    * The executor used for {@link Callback} methods on a {@link Call}. This may be {@code null},
    * in which case callbacks should be made synchronously on the background thread.
    */
-  public Executor callbackExecutor() {
+  public @Nullable Executor callbackExecutor() {
     return callbackExecutor;
   }
 
@@ -406,11 +416,11 @@ public final class Retrofit {
    */
   public static final class Builder {
     private final Platform platform;
-    private okhttp3.Call.Factory callFactory;
+    private @Nullable okhttp3.Call.Factory callFactory;
     private HttpUrl baseUrl;
     private final List<Converter.Factory> converterFactories = new ArrayList<>();
     private final List<CallAdapter.Factory> adapterFactories = new ArrayList<>();
-    private Executor callbackExecutor;
+    private @Nullable Executor callbackExecutor;
     private boolean validateEagerly;
 
     Builder(Platform platform) {

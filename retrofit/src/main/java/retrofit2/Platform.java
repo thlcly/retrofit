@@ -20,9 +20,9 @@ import android.os.Handler;
 import android.os.Looper;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.concurrent.Executor;
+import javax.annotation.Nullable;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 
 class Platform {
@@ -45,19 +45,14 @@ class Platform {
       return new Java8();
     } catch (ClassNotFoundException ignored) {
     }
-    try {
-      Class.forName("org.robovm.apple.foundation.NSObject");
-      return new IOS();
-    } catch (ClassNotFoundException ignored) {
-    }
     return new Platform();
   }
 
-  Executor defaultCallbackExecutor() {
+  @Nullable Executor defaultCallbackExecutor() {
     return null;
   }
 
-  CallAdapter.Factory defaultCallAdapterFactory(Executor callbackExecutor) {
+  CallAdapter.Factory defaultCallAdapterFactory(@Nullable Executor callbackExecutor) {
     if (callbackExecutor != null) {
       return new ExecutorCallAdapterFactory(callbackExecutor);
     }
@@ -68,8 +63,8 @@ class Platform {
     return false;
   }
 
-  Object invokeDefaultMethod(Method method, Class<?> declaringClass, Object object, Object... args)
-      throws Throwable {
+  @Nullable Object invokeDefaultMethod(Method method, Class<?> declaringClass, Object object,
+      @Nullable Object... args) throws Throwable {
     throw new UnsupportedOperationException();
   }
 
@@ -81,7 +76,7 @@ class Platform {
     }
 
     @Override Object invokeDefaultMethod(Method method, Class<?> declaringClass, Object object,
-        Object... args) throws Throwable {
+        @Nullable Object... args) throws Throwable {
       // Because the service interface might not be public, we need to use a MethodHandle lookup
       // that ignores the visibility of the declaringClass.
       Constructor<Lookup> constructor = Lookup.class.getDeclaredConstructor(Class.class, int.class);
@@ -98,7 +93,8 @@ class Platform {
       return new MainThreadExecutor();
     }
 
-    @Override CallAdapter.Factory defaultCallAdapterFactory(Executor callbackExecutor) {
+    @Override CallAdapter.Factory defaultCallAdapterFactory(@Nullable Executor callbackExecutor) {
+      if (callbackExecutor == null) throw new AssertionError();
       return new ExecutorCallAdapterFactory(callbackExecutor);
     }
 
@@ -107,49 +103,6 @@ class Platform {
 
       @Override public void execute(Runnable r) {
         handler.post(r);
-      }
-    }
-  }
-
-  static class IOS extends Platform {
-    @Override public Executor defaultCallbackExecutor() {
-      return new MainThreadExecutor();
-    }
-
-    @Override CallAdapter.Factory defaultCallAdapterFactory(Executor callbackExecutor) {
-      return new ExecutorCallAdapterFactory(callbackExecutor);
-    }
-
-    static class MainThreadExecutor implements Executor {
-      private static Object queue;
-      private static Method addOperation;
-
-      static {
-        try {
-          // queue = NSOperationQueue.getMainQueue();
-          Class<?> operationQueue = Class.forName("org.robovm.apple.foundation.NSOperationQueue");
-          queue = operationQueue.getDeclaredMethod("getMainQueue").invoke(null);
-          addOperation = operationQueue.getDeclaredMethod("addOperation", Runnable.class);
-        } catch (Exception e) {
-          throw new AssertionError(e);
-        }
-      }
-
-      @Override public void execute(Runnable r) {
-        try {
-          // queue.addOperation(r);
-          addOperation.invoke(queue, r);
-        } catch (IllegalArgumentException | IllegalAccessException e) {
-          throw new AssertionError(e);
-        } catch (InvocationTargetException e) {
-          Throwable cause = e.getCause();
-          if (cause instanceof RuntimeException) {
-            throw (RuntimeException) cause;
-          } else if (cause instanceof Error) {
-            throw (Error) cause;
-          }
-          throw new RuntimeException(cause);
-        }
       }
     }
   }

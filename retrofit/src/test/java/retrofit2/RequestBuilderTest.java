@@ -35,6 +35,7 @@ import okhttp3.ResponseBody;
 import okio.Buffer;
 import org.junit.Ignore;
 import org.junit.Test;
+import retrofit2.helpers.NullObjectConverterFactory;
 import retrofit2.helpers.ToStringConverterFactory;
 import retrofit2.http.Body;
 import retrofit2.http.DELETE;
@@ -57,6 +58,7 @@ import retrofit2.http.PartMap;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
 import retrofit2.http.QueryMap;
+import retrofit2.http.QueryName;
 import retrofit2.http.Url;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -1059,11 +1061,11 @@ public final class RequestBuilderTest {
       }
     }
 
-    List<Object> values = Arrays.<Object>asList(1, 2, null, "three");
+    List<Object> values = Arrays.<Object>asList(1, 2, null, "three", "1");
     Request request = buildRequest(Example.class, values);
     assertThat(request.method()).isEqualTo("GET");
     assertThat(request.headers().size()).isZero();
-    assertThat(request.url().toString()).isEqualTo("http://example.com/foo/bar/?key=1&key=2&key=three");
+    assertThat(request.url().toString()).isEqualTo("http://example.com/foo/bar/?key=1&key=2&key=three&key=1");
     assertThat(request.body()).isNull();
   }
 
@@ -1075,11 +1077,11 @@ public final class RequestBuilderTest {
       }
     }
 
-    Object[] values = { 1, 2, null, "three" };
+    Object[] values = { 1, 2, null, "three", "1" };
     Request request = buildRequest(Example.class, new Object[] { values });
     assertThat(request.method()).isEqualTo("GET");
     assertThat(request.headers().size()).isZero();
-    assertThat(request.url().toString()).isEqualTo("http://example.com/foo/bar/?key=1&key=2&key=three");
+    assertThat(request.url().toString()).isEqualTo("http://example.com/foo/bar/?key=1&key=2&key=three&key=1");
     assertThat(request.body()).isNull();
   }
 
@@ -1091,11 +1093,98 @@ public final class RequestBuilderTest {
       }
     }
 
-    int[] values = { 1, 2, 3 };
+    int[] values = { 1, 2, 3, 1 };
     Request request = buildRequest(Example.class, new Object[] { values });
     assertThat(request.method()).isEqualTo("GET");
     assertThat(request.headers().size()).isZero();
-    assertThat(request.url().toString()).isEqualTo("http://example.com/foo/bar/?key=1&key=2&key=3");
+    assertThat(request.url().toString()).isEqualTo("http://example.com/foo/bar/?key=1&key=2&key=3&key=1");
+    assertThat(request.body()).isNull();
+  }
+
+  @Test public void getWithQueryNameParam() {
+    class Example {
+      @GET("/foo/bar/") //
+      Call<ResponseBody> method(@QueryName String ping) {
+        return null;
+      }
+    }
+    Request request = buildRequest(Example.class, "pong");
+    assertThat(request.method()).isEqualTo("GET");
+    assertThat(request.headers().size()).isZero();
+    assertThat(request.url().toString()).isEqualTo("http://example.com/foo/bar/?pong");
+    assertThat(request.body()).isNull();
+  }
+
+  @Test public void getWithEncodedQueryNameParam() {
+    class Example {
+      @GET("/foo/bar/") //
+      Call<ResponseBody> method(@QueryName(encoded = true) String ping) {
+        return null;
+      }
+    }
+    Request request = buildRequest(Example.class, "p%20o%20n%20g");
+    assertThat(request.method()).isEqualTo("GET");
+    assertThat(request.headers().size()).isZero();
+    assertThat(request.url().toString()).isEqualTo("http://example.com/foo/bar/?p%20o%20n%20g");
+    assertThat(request.body()).isNull();
+  }
+
+  @Test public void queryNameParamOptionalOmitsQuery() {
+    class Example {
+      @GET("/foo/bar/") //
+      Call<ResponseBody> method(@QueryName String ping) {
+        return null;
+      }
+    }
+    Request request = buildRequest(Example.class, new Object[] { null });
+    assertThat(request.url().toString()).isEqualTo("http://example.com/foo/bar/");
+  }
+
+  @Test public void getWithQueryNameParamList() {
+    class Example {
+      @GET("/foo/bar/") //
+      Call<ResponseBody> method(@QueryName List<Object> keys) {
+        return null;
+      }
+    }
+
+    List<Object> values = Arrays.<Object>asList(1, 2, null, "three", "1");
+    Request request = buildRequest(Example.class, values);
+    assertThat(request.method()).isEqualTo("GET");
+    assertThat(request.headers().size()).isZero();
+    assertThat(request.url().toString()).isEqualTo("http://example.com/foo/bar/?1&2&three&1");
+    assertThat(request.body()).isNull();
+  }
+
+  @Test public void getWithQueryNameParamArray() {
+    class Example {
+      @GET("/foo/bar/") //
+      Call<ResponseBody> method(@QueryName Object[] keys) {
+        return null;
+      }
+    }
+
+    Object[] values = { 1, 2, null, "three", "1" };
+    Request request = buildRequest(Example.class, new Object[] { values });
+    assertThat(request.method()).isEqualTo("GET");
+    assertThat(request.headers().size()).isZero();
+    assertThat(request.url().toString()).isEqualTo("http://example.com/foo/bar/?1&2&three&1");
+    assertThat(request.body()).isNull();
+  }
+
+  @Test public void getWithQueryNameParamPrimitiveArray() {
+    class Example {
+      @GET("/foo/bar/") //
+      Call<ResponseBody> method(@QueryName int[] keys) {
+        return null;
+      }
+    }
+
+    int[] values = { 1, 2, 3, 1 };
+    Request request = buildRequest(Example.class, new Object[] { values });
+    assertThat(request.method()).isEqualTo("GET");
+    assertThat(request.headers().size()).isZero();
+    assertThat(request.url().toString()).isEqualTo("http://example.com/foo/bar/?1&2&3&1");
     assertThat(request.body()).isNull();
   }
 
@@ -2490,6 +2579,84 @@ public final class RequestBuilderTest {
     assertThat(readBody.indexOf("secondParam")).isLessThan(readBody.indexOf("thirdParam"));
   }
 
+  @Test public void queryParamsSkippedIfConvertedToNull() throws Exception {
+    class Example {
+      @GET("/query") Call<ResponseBody> queryPath(@Query("a") Object a) {
+        return null;
+      }
+    }
+
+    Retrofit.Builder retrofitBuilder = new Retrofit.Builder()
+        .baseUrl("http://example.com")
+        .addConverterFactory(new NullObjectConverterFactory());
+
+    Request request = buildRequest(Example.class, retrofitBuilder, "Ignored");
+
+    assertThat(request.url().toString()).doesNotContain("Ignored");
+  }
+
+  @Test public void queryParamMapsConvertedToNullShouldError() throws Exception {
+    class Example {
+      @GET("/query") Call<ResponseBody> queryPath(@QueryMap Map<String, String> a) {
+        return null;
+      }
+    }
+
+    Retrofit.Builder retrofitBuilder = new Retrofit.Builder()
+        .baseUrl("http://example.com")
+        .addConverterFactory(new NullObjectConverterFactory());
+
+    Map<String, String> queryMap = Collections.singletonMap("kit", "kat");
+
+    try {
+      buildRequest(Example.class, retrofitBuilder, queryMap);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertThat(e).hasMessageContaining(
+          "Query map value 'kat' converted to null by retrofit2.helpers.NullObjectConverterFactory$1 for key 'kit'.");
+    }
+  }
+
+  @Test public void fieldParamsSkippedIfConvertedToNull() throws Exception {
+    class Example {
+      @FormUrlEncoded
+      @POST("/query") Call<ResponseBody> queryPath(@Field("a") Object a) {
+        return null;
+      }
+    }
+
+    Retrofit.Builder retrofitBuilder = new Retrofit.Builder()
+        .baseUrl("http://example.com")
+        .addConverterFactory(new NullObjectConverterFactory());
+
+    Request request = buildRequest(Example.class, retrofitBuilder, "Ignored");
+
+    assertThat(request.url().toString()).doesNotContain("Ignored");
+  }
+
+  @Test public void fieldParamMapsConvertedToNullShouldError() throws Exception {
+    class Example {
+      @FormUrlEncoded
+      @POST("/query") Call<ResponseBody> queryPath(@FieldMap Map<String, String> a) {
+        return null;
+      }
+    }
+
+    Retrofit.Builder retrofitBuilder = new Retrofit.Builder()
+        .baseUrl("http://example.com")
+        .addConverterFactory(new NullObjectConverterFactory());
+
+    Map<String, String> queryMap = Collections.singletonMap("kit", "kat");
+
+    try {
+      buildRequest(Example.class, retrofitBuilder, queryMap);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertThat(e).hasMessageContaining(
+          "Field map value 'kat' converted to null by retrofit2.helpers.NullObjectConverterFactory$1 for key 'kit'.");
+    }
+  }
+
   private static void assertBody(RequestBody body, String expected) {
     assertThat(body).isNotNull();
     Buffer buffer = new Buffer();
@@ -2501,7 +2668,7 @@ public final class RequestBuilderTest {
     }
   }
 
-  static <T> Request buildRequest(Class<T> cls, Object... args) {
+  static <T> Request buildRequest(Class<T> cls, Retrofit.Builder builder, Object... args) {
     final AtomicReference<Request> requestRef = new AtomicReference<>();
     okhttp3.Call.Factory callFactory = new okhttp3.Call.Factory() {
       @Override public okhttp3.Call newCall(Request request) {
@@ -2510,11 +2677,7 @@ public final class RequestBuilderTest {
       }
     };
 
-    Retrofit retrofit = new Retrofit.Builder()
-        .baseUrl("http://example.com/")
-        .addConverterFactory(new ToStringConverterFactory())
-        .callFactory(callFactory)
-        .build();
+    Retrofit retrofit = builder.callFactory(callFactory).build();
 
     Method method = TestingUtils.onlyMethod(cls);
     //noinspection unchecked
@@ -2532,5 +2695,13 @@ public final class RequestBuilderTest {
     } catch (Exception e) {
       throw new AssertionError(e);
     }
+  }
+
+  static <T> Request buildRequest(Class<T> cls, Object... args) {
+    Retrofit.Builder retrofitBuilder = new Retrofit.Builder()
+        .baseUrl("http://example.com/")
+        .addConverterFactory(new ToStringConverterFactory());
+
+    return buildRequest(cls, retrofitBuilder, args);
   }
 }

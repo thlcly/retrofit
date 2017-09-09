@@ -25,7 +25,9 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import javax.annotation.Nullable;
 import retrofit2.CallAdapter;
+import retrofit2.HttpException;
 import retrofit2.Response;
 import retrofit2.Retrofit;
 
@@ -33,7 +35,7 @@ import retrofit2.Retrofit;
  * A {@linkplain CallAdapter.Factory call adapter} which uses RxJava 2 for creating observables.
  * <p>
  * Adding this class to {@link Retrofit} allows you to return an {@link Observable},
- * {@link Flowable}, {@code Single}, {@link Completable} or {@link Maybe} from service methods.
+ * {@link Flowable}, {@link Single}, {@link Completable} or {@link Maybe} from service methods.
  * <pre><code>
  * interface MyService {
  *   &#64;GET("user/me")
@@ -41,7 +43,7 @@ import retrofit2.Retrofit;
  * }
  * </code></pre>
  * There are three configurations supported for the {@code Observable}, {@code Flowable},
- * {@code Single}, and {@code Maybe} type parameter:
+ * {@code Single}, {@link Completable} and {@code Maybe} type parameter:
  * <ul>
  * <li>Direct body (e.g., {@code Observable<User>}) calls {@code onNext} with the deserialized body
  * for 2XX responses and calls {@code onError} with {@link HttpException} for non-2XX responses and
@@ -59,22 +61,33 @@ public final class RxJava2CallAdapterFactory extends CallAdapter.Factory {
    * by default.
    */
   public static RxJava2CallAdapterFactory create() {
-    return new RxJava2CallAdapterFactory(null);
+    return new RxJava2CallAdapterFactory(null, false);
+  }
+
+  /**
+   * Returns an instance which creates asynchronous observables. Applying
+   * {@link Observable#subscribeOn} has no effect on stream types created by this factory.
+   */
+  public static RxJava2CallAdapterFactory createAsync() {
+    return new RxJava2CallAdapterFactory(null, true);
   }
 
   /**
    * Returns an instance which creates synchronous observables that
    * {@linkplain Observable#subscribeOn(Scheduler) subscribe on} {@code scheduler} by default.
    */
+  @SuppressWarnings("ConstantConditions") // Guarding public API nullability.
   public static RxJava2CallAdapterFactory createWithScheduler(Scheduler scheduler) {
     if (scheduler == null) throw new NullPointerException("scheduler == null");
-    return new RxJava2CallAdapterFactory(scheduler);
+    return new RxJava2CallAdapterFactory(scheduler, false);
   }
 
-  private final Scheduler scheduler;
+  private final @Nullable Scheduler scheduler;
+  private final boolean isAsync;
 
-  private RxJava2CallAdapterFactory(Scheduler scheduler) {
+  private RxJava2CallAdapterFactory(@Nullable Scheduler scheduler, boolean isAsync) {
     this.scheduler = scheduler;
+    this.isAsync = isAsync;
   }
 
   @Override
@@ -84,7 +97,8 @@ public final class RxJava2CallAdapterFactory extends CallAdapter.Factory {
     if (rawType == Completable.class) {
       // Completable is not parameterized (which is what the rest of this method deals with) so it
       // can only be created with a single configuration.
-      return new RxJava2CallAdapter(Void.class, scheduler, false, true, false, false, false, true);
+      return new RxJava2CallAdapter(Void.class, scheduler, isAsync, false, true, false, false,
+          false, true);
     }
 
     boolean isFlowable = rawType == Flowable.class;
@@ -98,7 +112,9 @@ public final class RxJava2CallAdapterFactory extends CallAdapter.Factory {
     boolean isBody = false;
     Type responseType;
     if (!(returnType instanceof ParameterizedType)) {
-      String name = isFlowable ? "Flowable" : isSingle ? "Single" : "Observable";
+      String name = isFlowable ? "Flowable"
+          : isSingle ? "Single"
+          : isMaybe ? "Maybe" : "Observable";
       throw new IllegalStateException(name + " return type must be parameterized"
           + " as " + name + "<Foo> or " + name + "<? extends Foo>");
     }
@@ -123,7 +139,7 @@ public final class RxJava2CallAdapterFactory extends CallAdapter.Factory {
       isBody = true;
     }
 
-    return new RxJava2CallAdapter(responseType, scheduler, isResult, isBody, isFlowable,
+    return new RxJava2CallAdapter(responseType, scheduler, isAsync, isResult, isBody, isFlowable,
         isSingle, isMaybe, false);
   }
 }

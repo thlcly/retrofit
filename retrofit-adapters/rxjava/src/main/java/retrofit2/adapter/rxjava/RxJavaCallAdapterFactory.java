@@ -19,7 +19,9 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import javax.annotation.Nullable;
 import retrofit2.CallAdapter;
+import retrofit2.HttpException;
 import retrofit2.Response;
 import retrofit2.Retrofit;
 import rx.Completable;
@@ -61,35 +63,46 @@ public final class RxJavaCallAdapterFactory extends CallAdapter.Factory {
    * by default.
    */
   public static RxJavaCallAdapterFactory create() {
-    return new RxJavaCallAdapterFactory(null);
+    return new RxJavaCallAdapterFactory(null, false);
+  }
+
+  /**
+   * Returns an instance which creates asynchronous observables. Applying
+   * {@link Observable#subscribeOn} has no effect on stream types created by this factory.
+   */
+  public static RxJavaCallAdapterFactory createAsync() {
+    return new RxJavaCallAdapterFactory(null, true);
   }
 
   /**
    * Returns an instance which creates synchronous observables that
    * {@linkplain Observable#subscribeOn(Scheduler) subscribe on} {@code scheduler} by default.
    */
+  @SuppressWarnings("ConstantConditions") // Guarding public API nullability.
   public static RxJavaCallAdapterFactory createWithScheduler(Scheduler scheduler) {
     if (scheduler == null) throw new NullPointerException("scheduler == null");
-    return new RxJavaCallAdapterFactory(scheduler);
+    return new RxJavaCallAdapterFactory(scheduler, false);
   }
 
-  private final Scheduler scheduler;
+  private final @Nullable Scheduler scheduler;
+  private final boolean isAsync;
 
-  private RxJavaCallAdapterFactory(Scheduler scheduler) {
+  private RxJavaCallAdapterFactory(@Nullable Scheduler scheduler, boolean isAsync) {
     this.scheduler = scheduler;
+    this.isAsync = isAsync;
   }
 
   @Override
   public CallAdapter<?, ?> get(Type returnType, Annotation[] annotations, Retrofit retrofit) {
     Class<?> rawType = getRawType(returnType);
     boolean isSingle = rawType == Single.class;
-    boolean isCompletable = "rx.Completable".equals(rawType.getCanonicalName());
+    boolean isCompletable = rawType == Completable.class;
     if (rawType != Observable.class && !isSingle && !isCompletable) {
       return null;
     }
 
     if (isCompletable) {
-      return new RxJavaCallAdapter(Void.class, scheduler, false, true, false, true);
+      return new RxJavaCallAdapter(Void.class, scheduler, isAsync, false, true, false, true);
     }
 
     boolean isResult = false;
@@ -121,6 +134,7 @@ public final class RxJavaCallAdapterFactory extends CallAdapter.Factory {
       isBody = true;
     }
 
-    return new RxJavaCallAdapter(responseType, scheduler, isResult, isBody, isSingle, false);
+    return new RxJavaCallAdapter(responseType, scheduler, isAsync, isResult, isBody, isSingle,
+        false);
   }
 }
